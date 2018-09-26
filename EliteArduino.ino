@@ -5,7 +5,7 @@
 #define BUTTON_PRESSED LOW
 #define BUTTON_RELEASED HIGH
 
-#define FLAG_TEST 0x1
+#define FLAG_CARGO_SCOOP 0x200
 
 long currentFlags = -1;
 
@@ -13,7 +13,7 @@ struct Toggleswitch {
   byte pin;
   byte pinState;
   byte buttonState;
-  byte outputPin;
+  byte joyButton;
   unsigned long releaseTime;
   long flag;
 
@@ -22,11 +22,11 @@ struct Toggleswitch {
     if (currState != pinState || !isInSync()) {
       pinState = currState;
       buttonState = BUTTON_PRESSED;
-      digitalWrite(outputPin, HIGH);
+      Joystick.button(joyButton, true);
       releaseTime = millis() + BUTTON_HOLD_TIME;
     } else if (buttonState == BUTTON_PRESSED && millis() >= releaseTime) {
       buttonState = BUTTON_RELEASED;
-      digitalWrite(outputPin, LOW);
+      Joystick.button(joyButton, false);
     }
   }
 
@@ -50,13 +50,20 @@ Toggleswitch switches[5];
 void setup()
 {
   Serial.begin(9600);
-  pinMode(13, OUTPUT);
   pinMode(1, INPUT_PULLUP);
+
+  Joystick.X(512);
+  Joystick.Y(512);
+  Joystick.Z(512);
+  Joystick.Zrotate(512);
+  Joystick.sliderLeft(512);
+  Joystick.sliderRight(512);
+  Joystick.hat(-1);
 
   // Give time for digitalRead() to be accurate
   delay(1);
   byte initialState = digitalRead(1);
-  switches[0] = Toggleswitch{1, initialState, initialState, 13, 0, FLAG_TEST};
+  switches[0] = Toggleswitch{1, initialState, initialState, 1, 0, FLAG_CARGO_SCOOP};
   totalSwitches++;
 }
 
