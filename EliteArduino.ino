@@ -25,11 +25,11 @@ struct Toggleswitch {
     if (currState != pinState || !isInSync()) {
       pinState = currState;
       buttonState = BUTTON_PRESSED;
-      Joystick.button(joyButton, true);
+     Joystick.button(joyButton, true);
       releaseTime = millis() + BUTTON_HOLD_TIME;
     } else if (buttonState == BUTTON_PRESSED && millis() >= releaseTime) {
       buttonState = BUTTON_RELEASED;
-      Joystick.button(joyButton, false);
+     Joystick.button(joyButton, false);
     }
   }
 
@@ -62,7 +62,7 @@ void padStringForLcd(char *dest1, char *dest2, const char *src) {
   }
   
   int space = -1;
-  int start = min(strlen(src), LINE_LENGTH - 1);
+  int start = min(strlen(src), (unsigned)(LINE_LENGTH - 1));
   for (int i = start; i >= 0; i--) {
     if (src[i] == ' ') {
       space = i;
@@ -102,7 +102,7 @@ void padStringForLcd(char *dest1, char *dest2, const char *src) {
   dest2[LINE_LENGTH] = '\0';
 }
 
-LiquidCrystal lcd(18, 19, 14, 15, 16, 17);
+LiquidCrystal lcd(8, 13, 9, 4, 5, 6, 7);
 
 void lcdPrint(const char *text) {
   char line1[LINE_LENGTH + 1];
@@ -116,6 +116,49 @@ void lcdPrint(const char *text) {
   lcd.setCursor(0,1);
   lcd.print(line2);
   delay(1);
+}
+
+byte pips[3];
+unsigned long pipsLocalLastUpdated = -1;
+
+void increasePips(int index) {
+  int i1 = (index+1) % 3;
+  int i2 = (index+2) % 3;
+
+  if (pips[index] == 8) {
+    return;
+  }
+
+  if (pips[index] < 7) {
+    pips[index] += 2;
+    if (pips[i1] > 0) {
+      pips[i1] -= 1;
+    } else {
+      pips[i2] -= 1;
+    }
+    if (pips[i2] > 0) {
+      pips[i2] -= 1;
+    } else {
+      pips[i1] -= 1;
+    }
+  } else {
+    pips[index] += 1;
+    if (pips[i1] % 2 == 1) {
+      pips[i1] -= 1;
+    } else {
+      pips[i2] -= 1;
+    }
+  }
+
+  pipsLocalLastUpdated = millis();
+}
+
+void resetPips() {
+  for (int i = 0; i < 3; i++) {
+    pips[i] = 4;
+  }
+
+  pipsLocalLastUpdated = millis();
 }
 
 int totalSwitches = 0;
@@ -138,6 +181,8 @@ void setup()
   lcd.clear();
   lcd.begin(16, 2);
 
+  lcdPrint("Waiting for connection...");
+
   // Give time for digitalRead() to be accurate
 //  delay(1);
 //  byte initialState = digitalRead(1);
@@ -145,8 +190,7 @@ void setup()
 //  totalSwitches++;
 }
 
-void loop()
-{
+void handleSerialRx() {
   if (Serial.available()) {
     DynamicJsonBuffer jsonBuffer(512);
     JsonObject &root = jsonBuffer.parseObject(Serial);
@@ -163,11 +207,17 @@ void loop()
   
         lcdPrint(withPrefix);
       }
+
+      JsonArray &pipsJson = root["Pips"];
     }
   }
+}
+
+void loop()
+{
+  handleSerialRx();
 
   for (int i = 0; i < totalSwitches; i++) {
     switches[i].update();
   }
-  delay(20);
 }
