@@ -1,5 +1,7 @@
 #include <ArduinoJson.h>
 #include <LiquidCrystal.h>
+#include <Key.h>
+#include <Keypad.h>
 
 #define SHIFTPWM_NOSPI
 const int ShiftPWM_dataPin = 2;
@@ -23,22 +25,26 @@ const bool ShiftPWM_balanceLoad = false;
 
 #define PIPS_SYNC_TIME 2000
 
-#define FLAG_CARGO_SCOOP 0x200
+#define FLAG_LANDING_GEAR   0x00000004
+#define FLAG_HARDPOINTS     0x00000040
+#define FLAG_SHIP_LIGHTS    0x00000100
+#define FLAG_CARGO_SCOOP    0x00000200
+#define FLAG_SILENT_RUNNING 0x00000400
+#define FLAG_NIGHT_VISION   0x10000000
 
 long currentFlags = -1;
 
 struct Toggleswitch {
-  byte pin;
-  byte pinState;
+  byte currState;
+  byte keyState;
   byte buttonState;
   byte joyButton;
   unsigned long releaseTime;
   long flag;
 
   void update() {
-    int currState = digitalRead(pin);
-    if (currState != pinState || !isInSync()) {
-      pinState = currState;
+    if (currState != keyState || !isInSync()) {
+      keyState = currState;
       buttonState = BUTTON_PRESSED;
       // Joystick.button(joyButton, true);
       releaseTime = millis() + BUTTON_HOLD_TIME;
@@ -54,7 +60,7 @@ struct Toggleswitch {
       return true;
     }
 
-    bool buttonPressed = pinState == BUTTON_PRESSED;
+    bool buttonPressed = keyState == BUTTON_PRESSED;
     bool flagSet = currentFlags & flag;
     unsigned long timeSinceReleased = abs(signed(releaseTime - millis()));
 
@@ -176,9 +182,25 @@ void resetPips() {
   pipsLocalLastUpdated = millis();
 }
 
-int totalSwitches = 0;
-Toggleswitch switches[5];
+const int numSwitches = 6;
+Toggleswitch switches[numSwitches];
 char lastSystem[32];
+
+const byte rows = 5;
+const byte cols = 5;
+char keys[rows][cols] = {
+  {'a', 'b', 'c', 'd', 'e'},
+  {'f', 'g', 'h', 'i', 'j'},
+  {'k', 'l', 'm', 'n', 'o'},
+  {'p', 'q', 'r', 's', 't'},
+  {'u', 'v', 'w', 'x', 'y'}
+};
+
+const int switchIndexStart = rows * cols - numSwitches - 1;
+
+byte rowPins[rows] = {8, 9, 10, 11, 12};
+byte colPins[cols] = {14, 15, 16, 17, 18};
+Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
 void setup()
 {
@@ -201,11 +223,27 @@ void setup()
 
   lcdPrint("Waiting for connection...");
 
-  // Give time for digitalRead() to be accurate
-//  delay(1);
-//  byte initialState = digitalRead(1);
-//  switches[0] = Toggleswitch{1, initialState, initialState, 1, 0, FLAG_CARGO_SCOOP};
-//  totalSwitches++;
+  byte initialStates[numSwitches];
+  for (int i = 0; i < numSwitches; i++) {
+    initialStates[i] = BUTTON_RELEASED;
+  }
+
+  kpd.getKeys();
+  for (int i = 0; i < rows * cols; i++) {
+    int charIndex = (int)kpd.key[i].kchar - 97;
+    if (charIndex >= switchIndexStart) {
+      int switchIndex = charIndex - switchIndexStart;
+      KeyState state = kpd.key[i].kstate;
+      initialStates[switchIndex] = state == PRESSED || state == HOLD;
+    }
+  }
+
+  switches[0] = Toggleswitch{initialStates[0], initialStates[0], initialStates[0], 0, 0, FLAG_HARDPOINTS};
+  switches[1] = Toggleswitch{initialStates[1], initialStates[1], initialStates[1], 1, 0, FLAG_LANDING_GEAR};
+  switches[2] = Toggleswitch{initialStates[2], initialStates[2], initialStates[2], 2, 0, FLAG_CARGO_SCOOP};
+  switches[3] = Toggleswitch{initialStates[3], initialStates[3], initialStates[3], 3, 0, FLAG_SHIP_LIGHTS};
+  switches[4] = Toggleswitch{initialStates[4], initialStates[4], initialStates[4], 4, 0, FLAG_NIGHT_VISION};
+  switches[5] = Toggleswitch{initialStates[5], initialStates[5], initialStates[5], 5, 0, FLAG_SILENT_RUNNING};
 }
 
 void serialRx() {
@@ -261,11 +299,28 @@ void displayPips() {
   }
 }
 
+void updateKeys() {
+  kpd.getKeys();
+  for (int i = 0; i < rows * cols; i++) {
+    int charIndex = (int)kpd.key[i].kchar - 97;
+    if (charIndex >= switchIndexStart) {
+      int switchIndex = charIndex - switchIndexStart;
+      KeyState state = kpd.key[i].kstate;
+      if (state == PRESSED) {
+        switches[switchIndex].currState = BUTTON_PRESSED;
+      } else if (state == RELEASED) {
+        switches[switchIndex].currState = BUTTON_RELEASED;
+      }
+    }
+  }
+}
+
 void loop()
 {
   serialRx();
+  updateKeys();
 
-  for (int i = 0; i < totalSwitches; i++) {
+  for (int i = 0; i < numSwitches; i++) {
     switches[i].update();
   }
 }
