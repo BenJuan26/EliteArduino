@@ -1,12 +1,27 @@
 #include <ArduinoJson.h>
 #include <LiquidCrystal.h>
 
+#define SHIFTPWM_NOSPI
+const int ShiftPWM_dataPin = 2;
+const int ShiftPWM_clockPin = 3;
+const int ShiftPWM_latchPin = 4;
+
+const int pwmFrequency = 75;
+const int pwmMaxBrightness = 255;
+
+const bool ShiftPWM_invertOutputs = false;
+const bool ShiftPWM_balanceLoad = false;
+
+#include <ShiftPWM.h>
+
 #define LINE_LENGTH 16
 
 #define BUTTON_SYNC_TIME 5000
 #define BUTTON_HOLD_TIME 100
 #define BUTTON_PRESSED LOW
 #define BUTTON_RELEASED HIGH
+
+#define PIPS_SYNC_TIME 2000
 
 #define FLAG_CARGO_SCOOP 0x200
 
@@ -25,11 +40,11 @@ struct Toggleswitch {
     if (currState != pinState || !isInSync()) {
       pinState = currState;
       buttonState = BUTTON_PRESSED;
-     Joystick.button(joyButton, true);
+      // Joystick.button(joyButton, true);
       releaseTime = millis() + BUTTON_HOLD_TIME;
     } else if (buttonState == BUTTON_PRESSED && millis() >= releaseTime) {
       buttonState = BUTTON_RELEASED;
-     Joystick.button(joyButton, false);
+      // Joystick.button(joyButton, false);
     }
   }
 
@@ -119,7 +134,7 @@ void lcdPrint(const char *text) {
 }
 
 byte pips[3];
-unsigned long pipsLocalLastUpdated = -1;
+unsigned long pipsLocalLastUpdated = 0;
 
 void increasePips(int index) {
   int i1 = (index+1) % 3;
@@ -168,15 +183,18 @@ char lastSystem[32];
 void setup()
 {
   Serial.begin(9600);
+  ShiftPWM.SetAmountOfRegisters(2);
+  ShiftPWM.Start(pwmFrequency, pwmMaxBrightness);
+
   pinMode(1, INPUT_PULLUP);
 
-  Joystick.X(512);
-  Joystick.Y(512);
-  Joystick.Z(512);
-  Joystick.Zrotate(512);
-  Joystick.sliderLeft(512);
-  Joystick.sliderRight(512);
-  Joystick.hat(-1);
+  // Joystick.X(512);
+  // Joystick.Y(512);
+  // Joystick.Z(512);
+  // Joystick.Zrotate(512);
+  // Joystick.sliderLeft(512);
+  // Joystick.sliderRight(512);
+  // Joystick.hat(-1);
 
   lcd.clear();
   lcd.begin(16, 2);
@@ -190,7 +208,7 @@ void setup()
 //  totalSwitches++;
 }
 
-void handleSerialRx() {
+void serialRx() {
   if (Serial.available()) {
     DynamicJsonBuffer jsonBuffer(512);
     JsonObject &root = jsonBuffer.parseObject(Serial);
@@ -208,14 +226,44 @@ void handleSerialRx() {
         lcdPrint(withPrefix);
       }
 
-      JsonArray &pipsJson = root["Pips"];
+      if (millis() - pipsLocalLastUpdated > PIPS_SYNC_TIME) {
+        JsonArray &pipsJson = root["Pips"];
+        bool pipsChanged = false;
+        for (int i = 0; i < 3; i++) {
+          if (pips[i] != pipsJson[i]) {
+            pipsChanged = true;
+            pips[i] = pipsJson[i];
+          }
+        }
+        if (pipsChanged) {
+          displayPips();
+        }
+      }
     }
+  }
+}
+
+const int pwmLowBrightness = 8;
+
+void displayPips() {
+  for (int i = 0; i < 4; i++) {
+    if (pips[2] >= (i+1)*2) ShiftPWM.SetOne(i, pwmMaxBrightness);
+    else if (pips[2] >= (i*2)+1) ShiftPWM.SetOne(i, pwmLowBrightness);
+    else ShiftPWM.SetOne(i, 0);
+
+    if (pips[1] >= (i+1)*2) ShiftPWM.SetOne(i+4, pwmMaxBrightness);
+    else if (pips[1] >= (i*2)+1) ShiftPWM.SetOne(i+4, pwmLowBrightness);
+    else ShiftPWM.SetOne(i+4, 0);
+
+    if (pips[0] >= (i+1)*2) ShiftPWM.SetOne(i+8, pwmMaxBrightness);
+    else if (pips[0] >= (i*2)+1) ShiftPWM.SetOne(i+8, pwmLowBrightness);
+    else ShiftPWM.SetOne(i+8, 0);
   }
 }
 
 void loop()
 {
-  handleSerialRx();
+  serialRx();
 
   for (int i = 0; i < totalSwitches; i++) {
     switches[i].update();
