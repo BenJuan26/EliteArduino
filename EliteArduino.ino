@@ -46,11 +46,11 @@ struct Toggleswitch {
     if (currState != keyState || !isInSync()) {
       keyState = currState;
       buttonState = BUTTON_PRESSED;
-      // Joystick.button(joyButton, true);
+      Joystick.button(joyButton, true);
       releaseTime = millis() + BUTTON_HOLD_TIME;
     } else if (buttonState == BUTTON_PRESSED && millis() >= releaseTime) {
       buttonState = BUTTON_RELEASED;
-      // Joystick.button(joyButton, false);
+      Joystick.button(joyButton, false);
     }
   }
 
@@ -189,14 +189,16 @@ char lastSystem[32];
 const byte rows = 5;
 const byte cols = 5;
 char keys[rows][cols] = {
-  {'a', 'b', 'c', 'd', 'e'},
-  {'f', 'g', 'h', 'i', 'j'},
-  {'k', 'l', 'm', 'n', 'o'},
-  {'p', 'q', 'r', 's', 't'},
-  {'u', 'v', 'w', 'x', 'y'}
+  {'A', 'B', 'C', 'D', 'E'},
+  {'F', 'G', 'H', 'I', 'J'},
+  {'K', 'L', 'M', 'N', 'O'},
+  {'P', 'Q', 'R', 'S', 'T'},
+  {'U', 'V', 'W', 'X', 'Y'}
 };
+const int keyOffset = (int)keys[0][0];
 
-const int switchIndexStart = rows * cols - numSwitches - 1;
+const int switchIndexStart = rows * cols - numSwitches;
+const int pipsIndexStart = switchIndexStart - 4;
 
 byte rowPins[rows] = {8, 9, 10, 11, 12};
 byte colPins[cols] = {14, 15, 16, 17, 18};
@@ -210,13 +212,13 @@ void setup()
 
   pinMode(1, INPUT_PULLUP);
 
-  // Joystick.X(512);
-  // Joystick.Y(512);
-  // Joystick.Z(512);
-  // Joystick.Zrotate(512);
-  // Joystick.sliderLeft(512);
-  // Joystick.sliderRight(512);
-  // Joystick.hat(-1);
+  Joystick.X(512);
+  Joystick.Y(512);
+  Joystick.Z(512);
+  Joystick.Zrotate(512);
+  Joystick.sliderLeft(512);
+  Joystick.sliderRight(512);
+  Joystick.hat(-1);
 
   lcd.clear();
   lcd.begin(16, 2);
@@ -230,9 +232,9 @@ void setup()
 
   kpd.getKeys();
   for (int i = 0; i < rows * cols; i++) {
-    int charIndex = (int)kpd.key[i].kchar - 97;
-    if (charIndex >= switchIndexStart) {
-      int switchIndex = charIndex - switchIndexStart;
+    int keyIndex = (int)kpd.key[i].kchar - keyOffset;
+    if (keyIndex >= switchIndexStart) {
+      int switchIndex = keyIndex - switchIndexStart;
       KeyState state = kpd.key[i].kstate;
       initialStates[switchIndex] = state == PRESSED || state == HOLD;
     }
@@ -302,14 +304,37 @@ void displayPips() {
 void updateKeys() {
   kpd.getKeys();
   for (int i = 0; i < rows * cols; i++) {
-    int charIndex = (int)kpd.key[i].kchar - 97;
-    if (charIndex >= switchIndexStart) {
-      int switchIndex = charIndex - switchIndexStart;
-      KeyState state = kpd.key[i].kstate;
+    int keyIndex = (int)kpd.key[i].kchar;
+    KeyState state = kpd.key[i].kstate;
+
+    if (keyIndex >= switchIndexStart) {
+      int switchIndex = keyIndex - switchIndexStart;
       if (state == PRESSED) {
         switches[switchIndex].currState = BUTTON_PRESSED;
       } else if (state == RELEASED) {
         switches[switchIndex].currState = BUTTON_RELEASED;
+      }
+    }
+
+    else if (keyIndex >= pipsIndexStart) {
+      if (state == PRESSED) {
+        int pipsIndex = keyIndex - pipsIndexStart;
+        if (pipsIndex < 3) {
+          increasePips(pipsIndex);
+        } else {
+          resetPips();
+        }
+        Joystick.button(keyIndex, true);
+      } else if (state == RELEASED) {
+        Joystick.button(keyIndex, false);
+      }
+    }
+
+    else {
+      if (state == PRESSED) {
+        Joystick.button(keyIndex, true);
+      } else if (state == RELEASED) {
+        Joystick.button(keyIndex, false);
       }
     }
   }
