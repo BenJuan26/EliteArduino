@@ -42,6 +42,17 @@ struct Toggleswitch {
   unsigned long releaseTime;
   long flag;
 
+  Toggleswitch() {}
+
+  Toggleswitch(byte state, byte button, long theFlag) {
+    currState = state;
+    keyState = state;
+    buttonState = BUTTON_RELEASED;
+    joyButton = button;
+    releaseTime = 0L;
+    flag = theFlag;
+  }
+
   void update() {
     if (currState != keyState || !isInSync()) {
       keyState = currState;
@@ -172,6 +183,7 @@ void increasePips(int index) {
   }
 
   pipsLocalLastUpdated = millis();
+  displayPips();
 }
 
 void resetPips() {
@@ -180,10 +192,12 @@ void resetPips() {
   }
 
   pipsLocalLastUpdated = millis();
+  displayPips();
 }
 
 const int numSwitches = 6;
 Toggleswitch switches[numSwitches];
+
 char lastSystem[32];
 
 const byte rows = 5;
@@ -236,16 +250,17 @@ void setup()
     if (keyIndex >= switchIndexStart) {
       int switchIndex = keyIndex - switchIndexStart;
       KeyState state = kpd.key[i].kstate;
-      initialStates[switchIndex] = state == PRESSED || state == HOLD;
+      if (state == PRESSED || state == HOLD) {
+        initialStates[switchIndex] = BUTTON_PRESSED;
+      }
     }
   }
 
-  switches[0] = Toggleswitch{initialStates[0], initialStates[0], initialStates[0], 0, 0, FLAG_HARDPOINTS};
-  switches[1] = Toggleswitch{initialStates[1], initialStates[1], initialStates[1], 1, 0, FLAG_LANDING_GEAR};
-  switches[2] = Toggleswitch{initialStates[2], initialStates[2], initialStates[2], 2, 0, FLAG_CARGO_SCOOP};
-  switches[3] = Toggleswitch{initialStates[3], initialStates[3], initialStates[3], 3, 0, FLAG_SHIP_LIGHTS};
-  switches[4] = Toggleswitch{initialStates[4], initialStates[4], initialStates[4], 4, 0, FLAG_NIGHT_VISION};
-  switches[5] = Toggleswitch{initialStates[5], initialStates[5], initialStates[5], 5, 0, FLAG_SILENT_RUNNING};
+  int flags[6] = {FLAG_HARDPOINTS, FLAG_LANDING_GEAR, FLAG_CARGO_SCOOP,
+    FLAG_SHIP_LIGHTS, FLAG_NIGHT_VISION, FLAG_SILENT_RUNNING};
+  for (int i = 0; i < numSwitches; i++) {
+    switches[i] = Toggleswitch(initialStates[i], i + switchIndexStart, flags[i]);
+  }
 }
 
 void serialRx() {
