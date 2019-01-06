@@ -322,7 +322,10 @@ void displayPips() {
 void updateKeys() {
   if (kpd.getKeys()) {
     for (int i = 0; i < LIST_MAX; i++) {
-      int keyIndex = (int)kpd.key[i].kchar;
+      if (kpd.key[i].kchar == NO_KEY) {
+        continue;
+      }
+      int keyIndex = (int)kpd.key[i].kchar - keyOffset;
       KeyState state = kpd.key[i].kstate;
 
       if (keyIndex >= switchIndexStart) {
