@@ -4,9 +4,9 @@
 #include <Keypad.h>
 
 #define SHIFTPWM_NOSPI
-const int ShiftPWM_dataPin = 2;
-const int ShiftPWM_clockPin = 3;
-const int ShiftPWM_latchPin = 4;
+const int ShiftPWM_dataPin = 17;
+const int ShiftPWM_clockPin = 19;
+const int ShiftPWM_latchPin = 18;
 
 const int pwmFrequency = 75;
 const int pwmMaxBrightness = 255;
@@ -215,7 +215,7 @@ const int switchIndexStart = rows * cols - numSwitches;
 const int pipsIndexStart = switchIndexStart - 4;
 
 byte rowPins[rows] = {8, 9, 10, 11, 12};
-byte colPins[cols] = {14, 15, 16, 17, 18};
+byte colPins[cols] = {14, 15, 16, 20, 21};
 Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
 void setup()
@@ -244,17 +244,20 @@ void setup()
     initialStates[i] = BUTTON_RELEASED;
   }
 
-  kpd.getKeys();
-  for (int i = 0; i < rows * cols; i++) {
-    int keyIndex = (int)kpd.key[i].kchar - keyOffset;
-    if (keyIndex >= switchIndexStart) {
-      int switchIndex = keyIndex - switchIndexStart;
-      KeyState state = kpd.key[i].kstate;
-      if (state == PRESSED || state == HOLD) {
-        initialStates[switchIndex] = BUTTON_PRESSED;
+  if (kpd.getKeys()) {
+    for (int i = 0; i < LIST_MAX; i++) {
+      int keyIndex = (int)kpd.key[i].kchar - keyOffset;
+      if (keyIndex >= switchIndexStart) {
+        int switchIndex = keyIndex - switchIndexStart;
+        KeyState state = kpd.key[i].kstate;
+        if (state == PRESSED || state == HOLD) {
+          initialStates[switchIndex] = BUTTON_PRESSED;
+        }
       }
     }
   }
+
+  resetPips();
 
   int flags[6] = {FLAG_HARDPOINTS, FLAG_LANDING_GEAR, FLAG_CARGO_SCOOP,
     FLAG_SHIP_LIGHTS, FLAG_NIGHT_VISION, FLAG_SILENT_RUNNING};
@@ -317,39 +320,40 @@ void displayPips() {
 }
 
 void updateKeys() {
-  kpd.getKeys();
-  for (int i = 0; i < rows * cols; i++) {
-    int keyIndex = (int)kpd.key[i].kchar;
-    KeyState state = kpd.key[i].kstate;
+  if (kpd.getKeys()) {
+    for (int i = 0; i < LIST_MAX; i++) {
+      int keyIndex = (int)kpd.key[i].kchar;
+      KeyState state = kpd.key[i].kstate;
 
-    if (keyIndex >= switchIndexStart) {
-      int switchIndex = keyIndex - switchIndexStart;
-      if (state == PRESSED) {
-        switches[switchIndex].currState = BUTTON_PRESSED;
-      } else if (state == RELEASED) {
-        switches[switchIndex].currState = BUTTON_RELEASED;
-      }
-    }
-
-    else if (keyIndex >= pipsIndexStart) {
-      if (state == PRESSED) {
-        int pipsIndex = keyIndex - pipsIndexStart;
-        if (pipsIndex < 3) {
-          increasePips(pipsIndex);
-        } else {
-          resetPips();
+      if (keyIndex >= switchIndexStart) {
+        int switchIndex = keyIndex - switchIndexStart;
+        if (state == PRESSED) {
+          switches[switchIndex].currState = BUTTON_PRESSED;
+        } else if (state == RELEASED) {
+          switches[switchIndex].currState = BUTTON_RELEASED;
         }
-        Joystick.button(keyIndex, true);
-      } else if (state == RELEASED) {
-        Joystick.button(keyIndex, false);
       }
-    }
 
-    else {
-      if (state == PRESSED) {
-        Joystick.button(keyIndex, true);
-      } else if (state == RELEASED) {
-        Joystick.button(keyIndex, false);
+      else if (keyIndex >= pipsIndexStart) {
+        if (state == PRESSED) {
+          int pipsIndex = keyIndex - pipsIndexStart;
+          if (pipsIndex < 3) {
+            increasePips(pipsIndex);
+          } else {
+            resetPips();
+          }
+          Joystick.button(keyIndex, true);
+        } else if (state == RELEASED) {
+          Joystick.button(keyIndex, false);
+        }
+      }
+
+      else {
+        if (state == PRESSED) {
+          Joystick.button(keyIndex, true);
+        } else if (state == RELEASED) {
+          Joystick.button(keyIndex, false);
+        }
       }
     }
   }
