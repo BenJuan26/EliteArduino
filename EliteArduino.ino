@@ -10,6 +10,7 @@ const int ShiftPWM_latchPin = 18;
 
 const int pwmFrequency = 75;
 const int pwmMaxBrightness = 255;
+const int pwmLowBrightness = 8;
 
 const bool ShiftPWM_invertOutputs = false;
 const bool ShiftPWM_balanceLoad = false;
@@ -33,6 +34,30 @@ const bool ShiftPWM_balanceLoad = false;
 #define FLAG_NIGHT_VISION   0x10000000
 
 long currentFlags = -1;
+char lastSystem[32];
+LiquidCrystal lcd(8, 13, 9, 4, 5, 6, 7);
+
+byte pips[3];
+unsigned long pipsLocalLastUpdated = 0;
+
+const int numSwitches = 6;
+Toggleswitch switches[numSwitches];
+const int switchIndexStart = rows * cols - numSwitches;
+const int pipsIndexStart = switchIndexStart - 4;
+
+const byte rows = 5;
+const byte cols = 5;
+char keys[rows][cols] = {
+  {'A', 'B', 'C', 'D', 'E'},
+  {'F', 'G', 'H', 'I', 'J'},
+  {'K', 'L', 'M', 'N', 'O'},
+  {'P', 'Q', 'R', 'S', 'T'},
+  {'U', 'V', 'W', 'X', 'Y'}
+};
+const int keyOffset = keys[0][0];
+byte rowPins[rows] = {8, 9, 10, 11, 12};
+byte colPins[cols] = {14, 15, 16, 20, 21};
+Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
 struct Toggleswitch {
   byte currState;
@@ -134,8 +159,6 @@ void padStringForLcd(char *dest1, char *dest2, const char *src) {
   dest2[LINE_LENGTH] = '\0';
 }
 
-LiquidCrystal lcd(8, 13, 9, 4, 5, 6, 7);
-
 void lcdPrint(const char *text) {
   char line1[LINE_LENGTH + 1];
   char line2[LINE_LENGTH + 1];
@@ -149,9 +172,6 @@ void lcdPrint(const char *text) {
   lcd.print(line2);
   delay(1);
 }
-
-byte pips[3];
-unsigned long pipsLocalLastUpdated = 0;
 
 void increasePips(int index) {
   int i1 = (index+1) % 3;
@@ -194,29 +214,6 @@ void resetPips() {
   pipsLocalLastUpdated = millis();
   displayPips();
 }
-
-const int numSwitches = 6;
-Toggleswitch switches[numSwitches];
-
-char lastSystem[32];
-
-const byte rows = 5;
-const byte cols = 5;
-char keys[rows][cols] = {
-  {'A', 'B', 'C', 'D', 'E'},
-  {'F', 'G', 'H', 'I', 'J'},
-  {'K', 'L', 'M', 'N', 'O'},
-  {'P', 'Q', 'R', 'S', 'T'},
-  {'U', 'V', 'W', 'X', 'Y'}
-};
-const int keyOffset = (int)keys[0][0];
-
-const int switchIndexStart = rows * cols - numSwitches;
-const int pipsIndexStart = switchIndexStart - 4;
-
-byte rowPins[rows] = {8, 9, 10, 11, 12};
-byte colPins[cols] = {14, 15, 16, 20, 21};
-Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
 void setup()
 {
@@ -300,8 +297,6 @@ void serialRx() {
     }
   }
 }
-
-const int pwmLowBrightness = 8;
 
 void displayPips() {
   for (int i = 0; i < 4; i++) {
