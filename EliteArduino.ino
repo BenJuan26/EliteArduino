@@ -35,15 +35,10 @@ const bool ShiftPWM_balanceLoad = false;
 
 long currentFlags = -1;
 char lastSystem[32];
-LiquidCrystal lcd(8, 13, 9, 4, 5, 6, 7);
+LiquidCrystal lcd(5, 6, 7, 8, 9, 10);
 
 byte pips[3];
 unsigned long pipsLocalLastUpdated = 0;
-
-const int numSwitches = 6;
-Toggleswitch switches[numSwitches];
-const int switchIndexStart = rows * cols - numSwitches;
-const int pipsIndexStart = switchIndexStart - 4;
 
 const byte rows = 5;
 const byte cols = 5;
@@ -55,10 +50,11 @@ char keys[rows][cols] = {
   {'U', 'V', 'W', 'X', 'Y'}
 };
 const int keyOffset = keys[0][0];
-byte rowPins[rows] = {8, 9, 10, 11, 12};
-byte colPins[cols] = {14, 15, 16, 20, 21};
+byte rowPins[rows] = {14, 15, 16, 17, 18};
+byte colPins[cols] = {19, 20, 21, 22, 23};
 Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
+const int numSwitches = 6;
 struct Toggleswitch {
   byte currState;
   byte keyState;
@@ -103,6 +99,10 @@ struct Toggleswitch {
     return timeSinceReleased < BUTTON_SYNC_TIME || buttonPressed == flagSet;
   }
 };
+
+Toggleswitch switches[numSwitches];
+const int switchIndexStart = rows * cols - numSwitches;
+const int pipsIndexStart = switchIndexStart - 4;
 
 void padStringForLcd(char *dest1, char *dest2, const char *src) {
   if (strlen(src) <= LINE_LENGTH) {
