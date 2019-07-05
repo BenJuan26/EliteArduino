@@ -3,6 +3,7 @@
 #include <Key.h>
 #include <Keypad.h>
 
+// These definitions must be made prior to including ShiftPWM.h
 #define SHIFTPWM_NOSPI
 const int ShiftPWM_dataPin = 17;
 const int ShiftPWM_clockPin = 19;
@@ -19,8 +20,12 @@ const bool ShiftPWM_balanceLoad = false;
 
 #define LINE_LENGTH 16
 
+// Allow 5 seconds of lag from the device, to the game, and back to the device.
 #define BUTTON_SYNC_TIME 5000
+
+// Each button press will last about 100ms.
 #define BUTTON_HOLD_TIME 100
+
 #define BUTTON_PRESSED LOW
 #define BUTTON_RELEASED HIGH
 
@@ -33,7 +38,9 @@ const bool ShiftPWM_balanceLoad = false;
 #define FLAG_SILENT_RUNNING 0x00000400
 #define FLAG_NIGHT_VISION   0x10000000
 
-long currentFlags = -1;
+#define NO_FLAGS 0
+unsigned long currentFlags = NO_FLAGS;
+
 char lastSystem[32];
 LiquidCrystal lcd(5, 6, 7, 8, 9, 10);
 
@@ -49,7 +56,12 @@ char keys[rows][cols] = {
   {'P', 'Q', 'R', 'S', 'T'},
   {'U', 'V', 'W', 'X', 'Y'}
 };
+
+// The ASCII value of the first button in the matrix.
+// This will allow any key code to be turned into a zero-based
+// index for use with arrays.
 const int keyOffset = keys[0][0];
+
 byte rowPins[rows] = {14, 15, 16, 17, 18};
 byte colPins[cols] = {19, 20, 21, 22, 23};
 Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
@@ -60,18 +72,18 @@ struct Toggleswitch {
   byte keyState;
   byte buttonState;
   byte joyButton;
-  unsigned long releaseTime;
+  unsigned long pressedTime;
   long flag;
 
   Toggleswitch() {}
 
-  Toggleswitch(byte state, byte button, long theFlag) {
-    currState = state;
-    keyState = state;
+  Toggleswitch(byte _state, byte _button, long _flag) {
+    currState = _state;
+    keyState = _state;
     buttonState = BUTTON_RELEASED;
-    joyButton = button;
-    releaseTime = 0L;
-    flag = theFlag;
+    joyButton = _button;
+    pressedTime = 0L;
+    flag = _flag;
   }
 
   void update() {
@@ -79,8 +91,8 @@ struct Toggleswitch {
       keyState = currState;
       buttonState = BUTTON_PRESSED;
       Joystick.button(joyButton, true);
-      releaseTime = millis() + BUTTON_HOLD_TIME;
-    } else if (buttonState == BUTTON_PRESSED && millis() >= releaseTime) {
+      pressedTime = millis();
+    } else if (buttonState == BUTTON_PRESSED && millis() - pressedTime >= BUTTON_HOLD_TIME) {
       buttonState = BUTTON_RELEASED;
       Joystick.button(joyButton, false);
     }
@@ -94,9 +106,9 @@ struct Toggleswitch {
 
     bool buttonPressed = keyState == BUTTON_PRESSED;
     bool flagSet = currentFlags & flag;
-    unsigned long timeSinceReleased = abs(signed(releaseTime - millis()));
+    unsigned long timeSincePressed = millis() - pressedTime;
 
-    return timeSinceReleased < BUTTON_SYNC_TIME || buttonPressed == flagSet;
+    return timeSincePressed < BUTTON_SYNC_TIME || buttonPressed == flagSet;
   }
 };
 
@@ -177,10 +189,14 @@ void increasePips(int index) {
   int i1 = (index+1) % 3;
   int i2 = (index+2) % 3;
 
+  // Selected pips are full: do nothing.
   if (pips[index] == 8) {
     return;
   }
 
+  // A normal pips increase: increment the selected system by two,
+  // decrement the other systems by one each. In the case that a system
+  // is empty, take one additional pip from the other system.
   if (pips[index] < 7) {
     pips[index] += 2;
     if (pips[i1] > 0) {
@@ -193,7 +209,11 @@ void increasePips(int index) {
     } else {
       pips[i1] -= 1;
     }
-  } else {
+  }
+  
+  // Only room to increment the selected system by one pip: take it from the
+  // system that current has an odd number of pips assigned to it.
+  else {
     pips[index] += 1;
     if (pips[i1] % 2 == 1) {
       pips[i1] -= 1;
