@@ -3,21 +3,6 @@
 #include <Key.h>
 #include <Keypad.h>
 
-// These definitions must be made prior to including ShiftPWM.h
-#define SHIFTPWM_NOSPI
-const int ShiftPWM_dataPin = 17;
-const int ShiftPWM_clockPin = 19;
-const int ShiftPWM_latchPin = 18;
-
-const int pwmFrequency = 75;
-const int pwmMaxBrightness = 255;
-const int pwmLowBrightness = 8;
-
-const bool ShiftPWM_invertOutputs = false;
-const bool ShiftPWM_balanceLoad = false;
-
-#include <ShiftPWM.h>
-
 #define LINE_LENGTH 16
 
 // Allow 5 seconds of lag from the device, to the game, and back to the device.
@@ -29,23 +14,19 @@ const bool ShiftPWM_balanceLoad = false;
 #define BUTTON_PRESSED LOW
 #define BUTTON_RELEASED HIGH
 
-#define PIPS_SYNC_TIME 2000
-
-#define FLAG_LANDING_GEAR   0x00000004
-#define FLAG_HARDPOINTS     0x00000040
-#define FLAG_SHIP_LIGHTS    0x00000100
-#define FLAG_CARGO_SCOOP    0x00000200
-#define FLAG_SILENT_RUNNING 0x00000400
-#define FLAG_NIGHT_VISION   0x10000000
+#define FLAG_LANDING_GEAR    0x00000004
+#define FLAG_HARDPOINTS      0x00000040
+#define FLAG_SHIP_LIGHTS     0x00000100
+#define FLAG_CARGO_SCOOP     0x00000200
+#define FLAG_SILENT_RUNNING  0x00000400
+#define FLAG_SRV_TURRET_MODE 0x00002000
+#define FLAG_NIGHT_VISION    0x10000000
 
 #define NO_FLAGS 0
 unsigned long currentFlags = NO_FLAGS;
 
 char lastSystem[32];
 LiquidCrystal lcd(5, 6, 7, 8, 9, 10);
-
-byte pips[3];
-unsigned long pipsLocalLastUpdated = 0;
 
 const byte rows = 5;
 const byte cols = 5;
@@ -66,7 +47,7 @@ byte rowPins[rows] = {14, 15, 16, 17, 18};
 byte colPins[cols] = {19, 20, 21, 22, 23};
 Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
-const int numSwitches = 6;
+const int numSwitches = 7;
 struct Toggleswitch {
   byte currState;
   byte keyState;
@@ -114,7 +95,6 @@ struct Toggleswitch {
 
 Toggleswitch switches[numSwitches];
 const int switchIndexStart = rows * cols - numSwitches;
-const int pipsIndexStart = switchIndexStart - 4;
 
 void padStringForLcd(char *dest1, char *dest2, const char *src) {
   if (strlen(src) <= LINE_LENGTH) {
@@ -185,61 +165,9 @@ void lcdPrint(const char *text) {
   delay(1);
 }
 
-void increasePips(int index) {
-  int i1 = (index+1) % 3;
-  int i2 = (index+2) % 3;
-
-  // Selected pips are full: do nothing.
-  if (pips[index] == 8) {
-    return;
-  }
-
-  // A normal pips increase: increment the selected system by two,
-  // decrement the other systems by one each. In the case that a system
-  // is empty, take one additional pip from the other system.
-  if (pips[index] < 7) {
-    pips[index] += 2;
-    if (pips[i1] > 0) {
-      pips[i1] -= 1;
-    } else {
-      pips[i2] -= 1;
-    }
-    if (pips[i2] > 0) {
-      pips[i2] -= 1;
-    } else {
-      pips[i1] -= 1;
-    }
-  }
-  
-  // Only room to increment the selected system by one pip: take it from the
-  // system that current has an odd number of pips assigned to it.
-  else {
-    pips[index] += 1;
-    if (pips[i1] % 2 == 1) {
-      pips[i1] -= 1;
-    } else {
-      pips[i2] -= 1;
-    }
-  }
-
-  pipsLocalLastUpdated = millis();
-  displayPips();
-}
-
-void resetPips() {
-  for (int i = 0; i < 3; i++) {
-    pips[i] = 4;
-  }
-
-  pipsLocalLastUpdated = millis();
-  displayPips();
-}
-
 void setup()
 {
   Serial.begin(9600);
-  ShiftPWM.SetAmountOfRegisters(2);
-  ShiftPWM.Start(pwmFrequency, pwmMaxBrightness);
 
   pinMode(1, INPUT_PULLUP);
 
@@ -274,104 +202,64 @@ void setup()
     }
   }
 
-  resetPips();
-
-  int flags[6] = {FLAG_HARDPOINTS, FLAG_LANDING_GEAR, FLAG_CARGO_SCOOP,
-    FLAG_SHIP_LIGHTS, FLAG_NIGHT_VISION, FLAG_SILENT_RUNNING};
+  int flags[numSwitches] = {FLAG_HARDPOINTS, FLAG_LANDING_GEAR, FLAG_CARGO_SCOOP,
+    FLAG_SHIP_LIGHTS, FLAG_NIGHT_VISION, FLAG_SRV_TURRET_MODE, FLAG_SILENT_RUNNING};
   for (int i = 0; i < numSwitches; i++) {
     switches[i] = Toggleswitch(initialStates[i], i + switchIndexStart, flags[i]);
   }
 }
 
 void serialRx() {
-  if (Serial.available()) {
-    DynamicJsonBuffer jsonBuffer(512);
-    JsonObject &root = jsonBuffer.parseObject(Serial);
-    if (root.success()) {
-      long flags = root["Flags"];
-      currentFlags = flags;
-
-      const char *starsys = root["StarSystem"];
-      if (strcmp(lastSystem, starsys) != 0) {
-        strcpy(lastSystem, starsys);
-        char withPrefix[LINE_LENGTH * 2 + 1];
-        strcpy(withPrefix, "Sys: ");
-        strcat(withPrefix, starsys);
-  
-        lcdPrint(withPrefix);
-      }
-
-      if (millis() - pipsLocalLastUpdated > PIPS_SYNC_TIME) {
-        JsonArray &pipsJson = root["Pips"];
-        bool pipsChanged = false;
-        for (int i = 0; i < 3; i++) {
-          if (pips[i] != pipsJson[i]) {
-            pipsChanged = true;
-            pips[i] = pipsJson[i];
-          }
-        }
-        if (pipsChanged) {
-          displayPips();
-        }
-      }
-    }
+  if (!Serial.available()) {
+    return;
   }
-}
 
-void displayPips() {
-  for (int i = 0; i < 4; i++) {
-    if (pips[2] >= (i+1)*2) ShiftPWM.SetOne(i, pwmMaxBrightness);
-    else if (pips[2] >= (i*2)+1) ShiftPWM.SetOne(i, pwmLowBrightness);
-    else ShiftPWM.SetOne(i, 0);
+  DynamicJsonBuffer jsonBuffer(512);
+  JsonObject &root = jsonBuffer.parseObject(Serial);
+  if (!root.success()) {
+    return;
+  }
 
-    if (pips[1] >= (i+1)*2) ShiftPWM.SetOne(i+4, pwmMaxBrightness);
-    else if (pips[1] >= (i*2)+1) ShiftPWM.SetOne(i+4, pwmLowBrightness);
-    else ShiftPWM.SetOne(i+4, 0);
+  long flags = root["Flags"];
+  currentFlags = flags;
 
-    if (pips[0] >= (i+1)*2) ShiftPWM.SetOne(i+8, pwmMaxBrightness);
-    else if (pips[0] >= (i*2)+1) ShiftPWM.SetOne(i+8, pwmLowBrightness);
-    else ShiftPWM.SetOne(i+8, 0);
+  const char *starsys = root["StarSystem"];
+  if (strcmp(lastSystem, starsys) != 0) {
+    strcpy(lastSystem, starsys);
+    char withPrefix[LINE_LENGTH * 2 + 1];
+    strcpy(withPrefix, "Sys: ");
+    strcat(withPrefix, starsys);
+
+    lcdPrint(withPrefix);
   }
 }
 
 void updateKeys() {
-  if (kpd.getKeys()) {
-    for (int i = 0; i < LIST_MAX; i++) {
-      if (kpd.key[i].kchar == NO_KEY) {
-        continue;
-      }
-      int keyIndex = (int)kpd.key[i].kchar - keyOffset;
-      KeyState state = kpd.key[i].kstate;
+  if (!kpd.getKeys()) {
+    return;
+  }
 
-      if (keyIndex >= switchIndexStart) {
-        int switchIndex = keyIndex - switchIndexStart;
-        if (state == PRESSED) {
-          switches[switchIndex].currState = BUTTON_PRESSED;
-        } else if (state == RELEASED) {
-          switches[switchIndex].currState = BUTTON_RELEASED;
-        }
-      }
+  for (int i = 0; i < LIST_MAX; i++) {
+    if (kpd.key[i].kchar == NO_KEY) {
+      continue;
+    }
+    int keyIndex = (int)kpd.key[i].kchar - keyOffset;
+    KeyState state = kpd.key[i].kstate;
 
-      else if (keyIndex >= pipsIndexStart) {
-        if (state == PRESSED) {
-          int pipsIndex = keyIndex - pipsIndexStart;
-          if (pipsIndex < 3) {
-            increasePips(pipsIndex);
-          } else {
-            resetPips();
-          }
-          Joystick.button(keyIndex, true);
-        } else if (state == RELEASED) {
-          Joystick.button(keyIndex, false);
-        }
+    if (keyIndex >= switchIndexStart) {
+      int switchIndex = keyIndex - switchIndexStart;
+      if (state == PRESSED) {
+        switches[switchIndex].currState = BUTTON_PRESSED;
+      } else if (state == RELEASED) {
+        switches[switchIndex].currState = BUTTON_RELEASED;
       }
+    }
 
-      else {
-        if (state == PRESSED) {
-          Joystick.button(keyIndex, true);
-        } else if (state == RELEASED) {
-          Joystick.button(keyIndex, false);
-        }
+    else {
+      if (state == PRESSED) {
+        Joystick.button(keyIndex, true);
+      } else if (state == RELEASED) {
+        Joystick.button(keyIndex, false);
       }
     }
   }
