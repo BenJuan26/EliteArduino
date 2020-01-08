@@ -145,5 +145,3 @@ void loop()
     switches[i].update(currentFlags, flagsValid);
   }
 }
-
-extern usb_serial_class Serial;
