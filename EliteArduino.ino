@@ -3,16 +3,9 @@
 #include <Key.h>
 #include <Keypad.h>
 
+#include "toggleswitch.hpp"
+
 #define LINE_LENGTH 16
-
-// Allow 5 seconds of lag from the device, to the game, and back to the device.
-#define BUTTON_SYNC_TIME 5000
-
-// Each button press will last about 100ms.
-#define BUTTON_HOLD_TIME 100
-
-#define BUTTON_PRESSED LOW
-#define BUTTON_RELEASED HIGH
 
 #define FLAG_LANDING_GEAR    0x00000004
 #define FLAG_HARDPOINTS      0x00000040
@@ -22,8 +15,8 @@
 #define FLAG_SRV_TURRET_MODE 0x00002000
 #define FLAG_NIGHT_VISION    0x10000000
 
-#define NO_FLAGS 0
-unsigned long currentFlags = NO_FLAGS;
+unsigned long currentFlags = 0;
+bool flagsValid = false;
 
 char lastSystem[32];
 LiquidCrystal lcd(5, 6, 7, 8, 9, 10);
@@ -48,50 +41,6 @@ byte colPins[cols] = {19, 20, 21, 22, 23};
 Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
 const int numSwitches = 7;
-struct Toggleswitch {
-  byte currState;
-  byte keyState;
-  byte buttonState;
-  byte joyButton;
-  unsigned long pressedTime;
-  long flag;
-
-  Toggleswitch() {}
-
-  Toggleswitch(byte _state, byte _button, long _flag) {
-    currState = _state;
-    keyState = _state;
-    buttonState = BUTTON_RELEASED;
-    joyButton = _button;
-    pressedTime = 0L;
-    flag = _flag;
-  }
-
-  void update() {
-    if (currState != keyState || !isInSync()) {
-      keyState = currState;
-      buttonState = BUTTON_PRESSED;
-      Joystick.button(joyButton, true);
-      pressedTime = millis();
-    } else if (buttonState == BUTTON_PRESSED && millis() - pressedTime >= BUTTON_HOLD_TIME) {
-      buttonState = BUTTON_RELEASED;
-      Joystick.button(joyButton, false);
-    }
-  }
-
-  bool isInSync() {
-    // Always treat as in sync if there's no flag info
-    if (currentFlags < 0) {
-      return true;
-    }
-
-    bool buttonPressed = keyState == BUTTON_PRESSED;
-    bool flagSet = currentFlags & flag;
-    unsigned long timeSincePressed = millis() - pressedTime;
-
-    return timeSincePressed < BUTTON_SYNC_TIME || buttonPressed == flagSet;
-  }
-};
 
 Toggleswitch switches[numSwitches];
 const int switchIndexStart = rows * cols - numSwitches;
@@ -222,6 +171,7 @@ void serialRx() {
 
   long flags = root["Flags"];
   currentFlags = flags;
+  flagsValid = true;
 
   const char *starsys = root["StarSystem"];
   if (strcmp(lastSystem, starsys) != 0) {
@@ -271,6 +221,6 @@ void loop()
   updateKeys();
 
   for (int i = 0; i < numSwitches; i++) {
-    switches[i].update();
+    switches[i].update(currentFlags, flagsValid);
   }
 }
