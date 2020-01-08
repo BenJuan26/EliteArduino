@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef ARDUINO
+
 #ifndef HIGH
 #define HIGH 1
 #endif
@@ -11,12 +13,14 @@
 typedef unsigned char byte;
 
 extern bool buttonPressed[64];
-class MockJoystick {
+class usb_joystick_class {
 public:
     void button(byte button, bool val);
 };
 
-extern MockJoystick Joystick;
+extern usb_joystick_class Joystick;
 
 unsigned long millis();
 void initializeClock();
+
+#endif // ARDUINO

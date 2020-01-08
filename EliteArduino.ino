@@ -146,4 +146,4 @@ void loop()
   }
 }
 
-extern HardwareSerial Serial;
+extern usb_serial_class Serial;
