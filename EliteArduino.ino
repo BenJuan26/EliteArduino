@@ -152,3 +152,5 @@ void loop()
     switches[i].update(currentFlags, flagsValid);
   }
 }
+
+extern HardwareSerial Serial;
