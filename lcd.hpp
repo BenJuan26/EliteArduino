@@ -1,3 +1,5 @@
+#pragma once
+
 #include <LiquidCrystal.h>
 
 #define LINE_LENGTH 16

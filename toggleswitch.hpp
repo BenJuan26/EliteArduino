@@ -1,3 +1,7 @@
+#pragma once
+
+#include "test/mock_arduino.hpp"
+
 // Allow 5 seconds of lag from the device, to the game, and back to the device.
 #define BUTTON_SYNC_TIME 5000
 

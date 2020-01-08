@@ -4,14 +4,7 @@
 
 #include "toggleswitch.hpp"
 #include "lcd.hpp"
-
-#define FLAG_LANDING_GEAR    0x00000004
-#define FLAG_HARDPOINTS      0x00000040
-#define FLAG_SHIP_LIGHTS     0x00000100
-#define FLAG_CARGO_SCOOP     0x00000200
-#define FLAG_SILENT_RUNNING  0x00000400
-#define FLAG_SRV_TURRET_MODE 0x00002000
-#define FLAG_NIGHT_VISION    0x10000000
+#include "flags.hpp"
 
 unsigned long currentFlags = 0;
 bool flagsValid = false;
