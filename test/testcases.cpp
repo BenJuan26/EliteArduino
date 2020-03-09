@@ -23,7 +23,7 @@ int buttonSyncTest() {
         return 1;
     }
 
-    sleep(BUTTON_HOLD_TIME * 2);
+    addTime(BUTTON_HOLD_TIME * 2);
     ts.update(0, true);
 
     // Button release
@@ -31,7 +31,7 @@ int buttonSyncTest() {
         return 1;
     }
 
-    sleep(BUTTON_SYNC_TIME);
+    addTime(BUTTON_SYNC_TIME);
     ts.update(0, true);
 
     // Wait for the sync time and tell the switch the flag has still not been set
@@ -40,7 +40,7 @@ int buttonSyncTest() {
         return 1;
     }
 
-    sleep(BUTTON_HOLD_TIME * 2);
+    addTime(BUTTON_HOLD_TIME * 2);
     ts.update(0, true);
 
     // Button release
@@ -48,7 +48,7 @@ int buttonSyncTest() {
         return 1;
     }
 
-    sleep(BUTTON_SYNC_TIME);
+    addTime(BUTTON_SYNC_TIME);
     ts.update(0x0 | FLAG_HARDPOINTS, true);
 
     // Wait for the sync time and this time tell the switch the flag has been set

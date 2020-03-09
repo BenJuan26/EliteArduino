@@ -22,5 +22,6 @@ extern usb_joystick_class Joystick;
 
 unsigned long millis();
 void initializeClock();
+void addTime(unsigned long ms);
 
 #endif // ARDUINO

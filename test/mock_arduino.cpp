@@ -35,3 +35,7 @@ unsigned long millis() {
 void initializeClock() {
     start = currentTimeMs();
 }
+
+void addTime(unsigned long ms) {
+    start -= ms;
+}
