@@ -11,14 +11,13 @@ bool flagsValid = false;
 
 char lastSystem[32];
 
-const byte rows = 5;
+const byte rows = 4;
 const byte cols = 5;
 char keys[rows][cols] = {
   {'A', 'B', 'C', 'D', 'E'},
   {'F', 'G', 'H', 'I', 'J'},
   {'K', 'L', 'M', 'N', 'O'},
-  {'P', 'Q', 'R', 'S', 'T'},
-  {'U', 'V', 'W', 'X', 'Y'}
+  {'P', 'Q', 'R', 'S', 'T'}
 };
 
 // The ASCII value of the first button in the matrix.
@@ -26,7 +25,7 @@ char keys[rows][cols] = {
 // index for use with arrays.
 const int keyOffset = keys[0][0];
 
-byte rowPins[rows] = {14, 15, 16, 17, 18};
+byte rowPins[rows] = {14, 15, 16, 17};
 byte colPins[cols] = {19, 20, 21, 22, 23};
 Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
@@ -75,7 +74,7 @@ void setup()
   int flags[numSwitches] = {FLAG_HARDPOINTS, FLAG_LANDING_GEAR, FLAG_CARGO_SCOOP,
     FLAG_SHIP_LIGHTS, FLAG_NIGHT_VISION, FLAG_SRV_TURRET_MODE, FLAG_SILENT_RUNNING};
   for (int i = 0; i < numSwitches; i++) {
-    switches[i] = Toggleswitch(initialStates[i], i + switchIndexStart, flags[i]);
+    switches[i] = Toggleswitch(initialStates[i], i + switchIndexStart + 1, flags[i]);
   }
 }
 
@@ -128,9 +127,9 @@ void updateKeys() {
 
     else {
       if (state == PRESSED) {
-        Joystick.button(keyIndex, true);
+        Joystick.button(keyIndex+1, true);
       } else if (state == RELEASED) {
-        Joystick.button(keyIndex, false);
+        Joystick.button(keyIndex+1, false);
       }
     }
   }
