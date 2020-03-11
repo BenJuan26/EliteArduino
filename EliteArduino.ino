@@ -1,41 +1,23 @@
 #include <ArduinoJson.h>
-#include <LiquidCrystal.h>
 #include <Key.h>
 #include <Keypad.h>
 
-#define LINE_LENGTH 16
+#include "toggleswitch.hpp"
+#include "lcd.hpp"
+#include "flags.hpp"
 
-// Allow 5 seconds of lag from the device, to the game, and back to the device.
-#define BUTTON_SYNC_TIME 5000
-
-// Each button press will last about 100ms.
-#define BUTTON_HOLD_TIME 100
-
-#define BUTTON_PRESSED LOW
-#define BUTTON_RELEASED HIGH
-
-#define FLAG_LANDING_GEAR    0x00000004
-#define FLAG_HARDPOINTS      0x00000040
-#define FLAG_SHIP_LIGHTS     0x00000100
-#define FLAG_CARGO_SCOOP     0x00000200
-#define FLAG_SILENT_RUNNING  0x00000400
-#define FLAG_SRV_TURRET_MODE 0x00002000
-#define FLAG_NIGHT_VISION    0x10000000
-
-#define NO_FLAGS 0
-unsigned long currentFlags = NO_FLAGS;
+unsigned long currentFlags = 0;
+bool flagsValid = false;
 
 char lastSystem[32];
-LiquidCrystal lcd(5, 6, 7, 8, 9, 10);
 
-const byte rows = 5;
+const byte rows = 4;
 const byte cols = 5;
 char keys[rows][cols] = {
   {'A', 'B', 'C', 'D', 'E'},
   {'F', 'G', 'H', 'I', 'J'},
   {'K', 'L', 'M', 'N', 'O'},
-  {'P', 'Q', 'R', 'S', 'T'},
-  {'U', 'V', 'W', 'X', 'Y'}
+  {'P', 'Q', 'R', 'S', 'T'}
 };
 
 // The ASCII value of the first button in the matrix.
@@ -43,127 +25,14 @@ char keys[rows][cols] = {
 // index for use with arrays.
 const int keyOffset = keys[0][0];
 
-byte rowPins[rows] = {14, 15, 16, 17, 18};
+byte rowPins[rows] = {14, 15, 16, 17};
 byte colPins[cols] = {19, 20, 21, 22, 23};
 Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, rows, cols);
 
 const int numSwitches = 7;
-struct Toggleswitch {
-  byte currState;
-  byte keyState;
-  byte buttonState;
-  byte joyButton;
-  unsigned long pressedTime;
-  long flag;
-
-  Toggleswitch() {}
-
-  Toggleswitch(byte _state, byte _button, long _flag) {
-    currState = _state;
-    keyState = _state;
-    buttonState = BUTTON_RELEASED;
-    joyButton = _button;
-    pressedTime = 0L;
-    flag = _flag;
-  }
-
-  void update() {
-    if (currState != keyState || !isInSync()) {
-      keyState = currState;
-      buttonState = BUTTON_PRESSED;
-      Joystick.button(joyButton, true);
-      pressedTime = millis();
-    } else if (buttonState == BUTTON_PRESSED && millis() - pressedTime >= BUTTON_HOLD_TIME) {
-      buttonState = BUTTON_RELEASED;
-      Joystick.button(joyButton, false);
-    }
-  }
-
-  bool isInSync() {
-    // Always treat as in sync if there's no flag info
-    if (currentFlags < 0) {
-      return true;
-    }
-
-    bool buttonPressed = keyState == BUTTON_PRESSED;
-    bool flagSet = currentFlags & flag;
-    unsigned long timeSincePressed = millis() - pressedTime;
-
-    return timeSincePressed < BUTTON_SYNC_TIME || buttonPressed == flagSet;
-  }
-};
 
 Toggleswitch switches[numSwitches];
 const int switchIndexStart = rows * cols - numSwitches;
-
-void padStringForLcd(char *dest1, char *dest2, const char *src) {
-  if (strlen(src) <= LINE_LENGTH) {
-    strncpy(dest1, src, strlen(src));
-    for (int i = strlen(src); i < LINE_LENGTH; i++) {
-      dest1[i] = ' ';
-    }
-    for (int i = 0; i < LINE_LENGTH; i++) {
-      dest2[i] = ' ';
-    }
-    dest1[LINE_LENGTH] = '\0';
-    dest2[LINE_LENGTH] = '\0';
-    return;
-  }
-  
-  int space = -1;
-  int start = min(strlen(src), (unsigned)(LINE_LENGTH - 1));
-  for (int i = start; i >= 0; i--) {
-    if (src[i] == ' ') {
-      space = i;
-      break;
-    }
-  }
-
-  if (strlen(src) > LINE_LENGTH*2) {
-    // Total length is longer than the screen
-    strncpy(dest1, src, LINE_LENGTH);
-    strncpy(dest2, src + LINE_LENGTH, LINE_LENGTH-2);
-    dest2[LINE_LENGTH-2] = '.';
-    dest2[LINE_LENGTH-1] = '.';
-  } else if (space >= 0 && strlen(src+space) <= LINE_LENGTH) {
-    // Can break it up and the second line won't over flow
-    strncpy(dest1, src, space);
-    strncpy(dest2, src + space + 1, LINE_LENGTH);
-
-    // Padding
-    for (int i = space; i < LINE_LENGTH; i++) {
-      dest1[i] = ' ';
-    }
-    for (int i = strlen(dest2); i < LINE_LENGTH; i++) {
-      dest2[i] = ' ';
-    }
-  } else {
-    // Breaking it up would overflow the second line
-    strncpy(dest1, src, LINE_LENGTH);
-    strncpy(dest2, src + LINE_LENGTH, LINE_LENGTH);
-    for (int i = strlen(src + LINE_LENGTH); i < LINE_LENGTH; i++) {
-      dest2[i] = ' ';
-    }
-  }
-
-  // Null terminators
-  dest1[LINE_LENGTH] = '\0';
-  dest2[LINE_LENGTH] = '\0';
-}
-
-void lcdPrint(const char *text) {
-  char line1[LINE_LENGTH + 1];
-  char line2[LINE_LENGTH + 1];
-  padStringForLcd(line1, line2, text);
-
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print(line1);
-  delay(1);
-  lcd.setCursor(0,1);
-  lcd.print(line2);
-  delay(1);
-}
 
 void setup()
 {
@@ -205,7 +74,7 @@ void setup()
   int flags[numSwitches] = {FLAG_HARDPOINTS, FLAG_LANDING_GEAR, FLAG_CARGO_SCOOP,
     FLAG_SHIP_LIGHTS, FLAG_NIGHT_VISION, FLAG_SRV_TURRET_MODE, FLAG_SILENT_RUNNING};
   for (int i = 0; i < numSwitches; i++) {
-    switches[i] = Toggleswitch(initialStates[i], i + switchIndexStart, flags[i]);
+    switches[i] = Toggleswitch(initialStates[i], i + switchIndexStart + 1, flags[i]);
   }
 }
 
@@ -222,6 +91,7 @@ void serialRx() {
 
   long flags = root["Flags"];
   currentFlags = flags;
+  flagsValid = true;
 
   const char *starsys = root["StarSystem"];
   if (strcmp(lastSystem, starsys) != 0) {
@@ -257,9 +127,9 @@ void updateKeys() {
 
     else {
       if (state == PRESSED) {
-        Joystick.button(keyIndex, true);
+        Joystick.button(keyIndex+1, true);
       } else if (state == RELEASED) {
-        Joystick.button(keyIndex, false);
+        Joystick.button(keyIndex+1, false);
       }
     }
   }
@@ -271,6 +141,6 @@ void loop()
   updateKeys();
 
   for (int i = 0; i < numSwitches; i++) {
-    switches[i].update();
+    switches[i].update(currentFlags, flagsValid);
   }
 }
