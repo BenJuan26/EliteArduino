@@ -8,6 +8,8 @@
 
 #define UPDATE_STALE_TIME 12000
 
+#define BUTTON_LED_PIN 3
+
 unsigned long currentFlags = 0;
 unsigned long lastUpdate = 0;
 bool flagsValid = false;
@@ -42,6 +44,8 @@ void setup()
   Serial.begin(9600);
 
   pinMode(1, INPUT_PULLUP);
+  pinMode(BUTTON_LED_PIN, OUTPUT);
+  digitalWrite(BUTTON_LED_PIN, HIGH);
 
   Joystick.X(512);
   Joystick.Y(512);
