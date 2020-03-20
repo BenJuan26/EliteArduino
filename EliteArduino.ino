@@ -6,7 +6,12 @@
 #include "lcd.hpp"
 #include "flags.hpp"
 
+#define UPDATE_STALE_TIME 12000
+
+#define BUTTON_LED_PIN 3
+
 unsigned long currentFlags = 0;
+unsigned long lastUpdate = 0;
 bool flagsValid = false;
 
 char lastSystem[32];
@@ -39,6 +44,8 @@ void setup()
   Serial.begin(9600);
 
   pinMode(1, INPUT_PULLUP);
+  pinMode(BUTTON_LED_PIN, OUTPUT);
+  digitalWrite(BUTTON_LED_PIN, HIGH);
 
   Joystick.X(512);
   Joystick.Y(512);
@@ -80,6 +87,11 @@ void setup()
 
 void serialRx() {
   if (!Serial.available()) {
+    unsigned long currentTime = millis();
+    if (flagsValid && currentTime - lastUpdate > UPDATE_STALE_TIME) {
+      flagsValid = false;
+      lcdPrint("Waiting for connection...");
+    }
     return;
   }
 
@@ -91,10 +103,9 @@ void serialRx() {
 
   long flags = root["Flags"];
   currentFlags = flags;
-  flagsValid = true;
 
   const char *starsys = root["StarSystem"];
-  if (strcmp(lastSystem, starsys) != 0) {
+  if (!flagsValid || strcmp(lastSystem, starsys) != 0) {
     strcpy(lastSystem, starsys);
     char withPrefix[LINE_LENGTH * 2 + 1];
     strcpy(withPrefix, "Sys: ");
@@ -102,6 +113,9 @@ void serialRx() {
 
     lcdPrint(withPrefix);
   }
+
+  flagsValid = true;
+  lastUpdate = millis();
 }
 
 void updateKeys() {
