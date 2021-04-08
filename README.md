@@ -18,7 +18,7 @@ In the case of this controller, after starting up the game, the controller would
 
 ## Fallback to default behaviour
 
-If the controller hasn't received any data from the agent, or if data hasn't been received for some time (currently set to 12 seconds), it will fall back to the default behaviour of simply firing a button press every time a switch changes position. This way, it can conceivably be used without the agent running, though its usefulness will questionable in that case.
+If the controller hasn't received any data from the agent, or if data hasn't been received for some time (currently set to 12 seconds), it will fall back to the default behaviour of simply firing a button press every time a switch changes position. This way, it can conceivably be used without the agent running, though its usefulness will be questionable in that case.
 
 ## Other data received from the game
 
